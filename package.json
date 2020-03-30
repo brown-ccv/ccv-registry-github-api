@@ -1,0 +1,17 @@
+{
+  "name": "ccv-gh-api",
+  "version": "1.0.0",
+  "description": "GitHub API Server",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Fernando Gelin",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^8.2.0",
+    "express": "^4.17.1",
+    "graphql-request": "^1.8.2",
+    "yaml": "^1.8.3"
+  }
+}
