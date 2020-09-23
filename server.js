@@ -1,43 +1,71 @@
-require('dotenv').config()
-const GraphQLClient = require('graphql-request').GraphQLClient
-const yaml = require('yaml')
-const express = require('express')
+require('dotenv').config();
+const GraphQLClient = require('graphql-request').GraphQLClient;
+const yaml = require('yaml');
+const fm = require('front-matter');
+const express = require('express');
+const Showdown  = require('showdown');
+const fs = require('fs');
 
-const app = express()
-const port = 3000
+const converter = new Showdown.Converter();
+
+const organization = 'brown-ccv';
+const repository = 'ccv-website-content';
+const defaultBranch = 'master';
+
+const app = express();
+const port = 3001;
 
 app.use(function(req, res, next) {
-    res.header("Access-Control-Allow-Origin", "*"); // update to match the domain you will make the request from
-    res.header("Access-Control-Allow-Headers", "*");
-    next();
-  });
+  res.header('Access-Control-Allow-Origin', '*'); // update to match the domain you will make the request from
+  res.header('Access-Control-Allow-Headers', '*');
+  next();
+});
 
-  app.listen(port, () => console.log(`Example app listening on port ${port}!`))
+app.listen(port, () => console.log(`CCV Content App listening on port ${port}!`));
 
-const endpoint = 'https://api.github.com/graphql' 
+const endpoint = 'https://api.github.com/graphql'; 
 
 const client = new GraphQLClient(endpoint, {
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
-      'User-Agent': process.env.GITHUB_USER
-    },
-  })
+  headers: {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${process.env.GITHUB_TOKEN}`,
+    'User-Agent': process.env.GITHUB_USER
+  },
+});
 
-const normalize = response => {
-    const content = response.repository.object.entries
-    const filtered = content.filter(entry => entry.name.includes('yml'))
-    const normalized = filtered.map(entry => {
-      return (entry.text = yaml.parse(entry.object.text))
-    })
-    return normalized
-  } 
+const normalize = (response) => {
+  const content = response.repository.object.entries;
+  const filtered = content.filter(entry => entry.name.includes('.md') ||  entry.name.includes('.yml'));
+  let normalized;
+  filtered.map(entry => {
+    if (entry.name.includes('.yml') || entry.name.includes('.yaml')) {
+      normalized = filtered.map(entry => {
+        return (entry.text = yaml.parse(entry.object.text));
+      });
+    }
+    else if (entry.name.includes('.md')) {
+      normalized = filtered.map(entry => {
+        const content = fm(entry.object.text);
+        console.log(content.body.length);
+        if (content.body.length) {
+          return {
+            ...content.attributes,
+            body: `<main>${converter.makeHtml(content.body)}</main>`
+          };
+        } 
+        else {
+          return content.attributes;
+        }
+      });
+    }
+  });
+  return normalized;
+}; 
 
- 
-const query = folder => {
-    return `{
-      repository(owner: "brown-ccv", name: "ccv-registry") {
-        object(expression: "action-test:${folder}") {
+const dataQuery = (folder, repository, branch) => {
+  return `{
+      repository(owner: "brown-ccv", name: "${repository}") {
+        object(expression: "${branch}:${folder}") {
           ... on Tree {
             entries {
               name
@@ -51,20 +79,122 @@ const query = folder => {
         }
       }
     }
-    `
+    `;
+};
+
+const pathsQuery = (organization, repository, branch) => {
+  return `{
+    repository(owner: "${organization}", name: "${repository}") {
+      object(expression: "${branch}:") {
+        ... on Tree {
+          entries {
+            path
+            object {
+              ... on Tree {
+                entries {
+                  path
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }`;
+};
+
+const data = (folder, repository, defaultBranch) => client
+  .request(dataQuery(folder, repository, defaultBranch))
+  .then((response) => normalize(response));
+
+const paths = () => client.request(pathsQuery(organization, repository, defaultBranch))
+  .then((response) => {
+    let paths = [];
+    response.repository.object.entries.forEach((obj) => {
+      paths.push(obj.path);
+      if (Object.keys(obj.object).includes('entries')) {
+        obj.object.entries.forEach((innerObject) => paths.push(innerObject.path));
+      }
+    });
+    const result = paths.filter((path) => !path.includes('.'));
+    return result;
+  });
+
+const fileName = (folder) => `content/${folder.replace('/', '-')}.json`;
+
+app.get('/fetch23r029cd8323209dsc923ijc93', async (req, res) => { 
+  paths().then(paths => {
+    paths.forEach(path => {
+      data(path, repository, defaultBranch).then(response => {
+        fs.writeFile(fileName(path), JSON.stringify(response), (err) => {
+          if (err) throw err;
+        });
+      }); 
+    });
+    res.send('Content updated.');
+  });
+});
+
+paths().then(paths => {
+  paths.forEach(folder => {
+    app.get(`/${folder}`, (req, res) => {
+      fs.readFile(fileName(folder), (err, json) => {
+        let obj = JSON.parse(json);
+        res.json(obj);
+      });
+    });
+  });
+});
+
+// Status
+
+const statusQuery = `{
+  organization(login: "ccv-status") {
+    repositories(first: 10) {
+      nodes {
+        id
+        name
+        issues(first: 10, states: CLOSED) {
+          edges {
+            node {
+              id
+              labels(first: 10) {
+                nodes {
+                  color
+                  name
+                }
+              }
+              author {
+                login
+              }
+              createdAt
+              closedAt
+              editor {
+                login
+              }
+              title
+              updatedAt
+            }
+          }
+        }
+      }
+    }
   }
- 
+}
+`;
 
-const data = (folder) => client.request(query(folder)).then((response) => normalize(response))
+client.request(statusQuery).then((response) => {
+  app.get('/status', (req, res) => {
+    let status = [];
+    response.organization.repositories.nodes.map((repo) => {
+      let repoObj = { name: repo.name, open_issues: repo.issues.edges.length };
+      status.push(repoObj);
+    });
+    let totalOpen = status.map((a) => a.open_issues).reduce((a,b) => a + b);
+    let disrrupted = status.filter((a) => a.open_issues > 0).map((a) => a.name);
+    status.push({name: 'all', open_issues: totalOpen, disrrupted});
+    res.json(status);
+  });
+});
 
-app.get('/workshops', (req, res) => {
-    data('workshops').then(res.send.bind(res))
-})
 
-app.get('/talks', (req, res) => {
-    data('talks').then(res.send.bind(res))
-})
-
-app.get('/software', (req, res) => {
-    data('software').then(res.send.bind(res))
-})
