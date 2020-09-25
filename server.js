@@ -10,7 +10,7 @@ const converter = new Showdown.Converter();
 
 const organization = 'brown-ccv';
 const repository = 'ccv-website-content';
-const defaultBranch = 'master';
+const defaultBranch = 'main';
 
 const app = express();
 const port = 3001;
@@ -35,18 +35,17 @@ const client = new GraphQLClient(endpoint, {
 
 const normalize = (response) => {
   const content = response.repository.object.entries;
-  const filtered = content.filter(entry => entry.name.includes('.md') ||  entry.name.includes('.yml'));
+  const filtered = content.filter(entry => entry.name.includes('.md') || entry.name.includes('.yml') || entry.name.includes('.yaml'));
   let normalized;
-  filtered.map(entry => {
+  content.map(entry => {
     if (entry.name.includes('.yml') || entry.name.includes('.yaml')) {
       normalized = filtered.map(entry => {
-        return (entry.text = yaml.parse(entry.object.text));
+        return yaml.parse(entry.object.text);
       });
     }
     else if (entry.name.includes('.md')) {
       normalized = filtered.map(entry => {
         const content = fm(entry.object.text);
-        console.log(content.body.length);
         if (content.body.length) {
           return {
             ...content.attributes,
@@ -122,7 +121,7 @@ const paths = () => client.request(pathsQuery(organization, repository, defaultB
 
 const fileName = (folder) => `content/${folder.replace('/', '-')}.json`;
 
-app.get('/fetch23r029cd8323209dsc923ijc93', async (req, res) => { 
+app.get('/fetch', async (req, res) => { 
   paths().then(paths => {
     paths.forEach(path => {
       data(path, repository, defaultBranch).then(response => {
