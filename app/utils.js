@@ -172,19 +172,30 @@ const normalize = (response) => {
   const yamlFiles = content.filter(entry => entry.name.includes('.yml') || entry.name.includes('.yaml'));
   const mdFiles = content.filter(entry =>  entry.name.includes('.md'));
   
-  const normalizedYaml = yamlFiles.map((entry) => yaml.parse(entry.object.text));
+  const normalizedYaml = yamlFiles.map((entry) => {
+    let obj = yaml.parse(entry.object.text);
+    if (entry.name.includes('index')) {
+      obj.index = true;
+    }
+    return obj;
+  });
   
   const normalizedMd = mdFiles.map((entry) => {
     const md = fm(entry.object.text);
+    var obj = {};
     if (md.body.length) {
-      return {
+      obj = {
         ...md.attributes,
         body: `<main>${converter.makeHtml(md.body)}</main>`
       };
     } 
     else {
-      return md.attributes;
+      obj = md.attributes;
     }
+    if (entry.name.includes('index')) {
+      obj.index = true;
+    }
+    return obj;
   });
   return organizeJson(normalizedMd.concat(normalizedYaml));
 }; 
@@ -212,12 +223,18 @@ const data = (folder, repository, defaultBranch) => client
    */
 const fileName = (folder) => `app/content/${folder.replace('/', '-')}.json`;
   
-
+/**
+   * Organizes JSON response.
+   * 
+   * @function fileName
+   * @param {Array} arr - Array of objects (response from Github API call)
+   * @return {Object} Object with index, and data keys.
+   */
 const organizeJson = (arr) => {
   var obj = {};
   let data = [];
   arr.map(a => {
-    if (Object.prototype.hasOwnProperty.call(a, 'hidden')) {
+    if (Object.prototype.hasOwnProperty.call(a, 'index')) {
       obj.index = a;
     }
     else {
