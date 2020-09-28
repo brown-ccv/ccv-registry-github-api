@@ -186,7 +186,7 @@ const normalize = (response) => {
       return md.attributes;
     }
   });
-  return normalizedMd.concat(normalizedYaml);
+  return organizeJson(normalizedMd.concat(normalizedYaml));
 }; 
   
 /**
@@ -212,6 +212,23 @@ const data = (folder, repository, defaultBranch) => client
    */
 const fileName = (folder) => `app/content/${folder.replace('/', '-')}.json`;
   
+
+const organizeJson = (arr) => {
+  var obj = {};
+  let data = [];
+  arr.map(a => {
+    if (Object.prototype.hasOwnProperty.call(a, 'hidden')) {
+      obj.index = a;
+    }
+    else {
+      data.push(a);
+    }
+    obj.data = data;
+    return obj;
+  });
+  return obj;
+};
+
 module.exports = {
   organization,
   repository,
@@ -224,5 +241,6 @@ module.exports = {
   pathsQuery,
   dataQuery,
   client,
-  swaggerString
+  swaggerString,
+  organizeJson
 };
