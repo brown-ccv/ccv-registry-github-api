@@ -10,6 +10,13 @@ const port = 3001;
 
 const specs = swaggerJsdoc(swaggerOptions);
 
+app.use(logger('dev'));
+app.use(function(req, res, next) {
+  res.header('Access-Control-Allow-Origin', '*'); // update to match the domain you will make the request from
+  res.header('Access-Control-Allow-Headers', '*');
+  next();
+});
+
 app.use(
   '/api-docs',
   swaggerUi.serve,
@@ -23,13 +30,6 @@ const contentRouter = require('./routes/content');
 app.use('/status', statusRouter);
 app.use('/reload', reloadRouter);
 app.use('/', contentRouter);
-
-app.use(logger('dev'));
-app.use(function(req, res, next) {
-  res.header('Access-Control-Allow-Origin', '*'); // update to match the domain you will make the request from
-  res.header('Access-Control-Allow-Headers', '*');
-  next();
-});
 
 app.listen(port, () => console.log(`CCV Content App listening on port ${port}!`));
 
