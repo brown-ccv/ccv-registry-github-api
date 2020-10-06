@@ -169,11 +169,17 @@ const paths = (organization, repository, defaultBranch) => client.request(pathsQ
    */
 const normalize = (response) => {
   const content = response.repository.object.entries;
-  const yamlFiles = content.filter(entry => entry.name.includes('.yml') || entry.name.includes('.yaml'));
-  const mdFiles = content.filter(entry =>  entry.name.includes('.md'));
-  
+  const yamlFiles = content.filter(entry => entry.name.includes('.yml') || entry.name.includes('.yaml') || !entry.name.includes('.'));
+  const mdFiles = content.filter(entry =>  entry.name.includes('.md') || !entry.name.includes('.'));
+
   const normalizedYaml = yamlFiles.map((entry) => {
-    let obj = yaml.parse(entry.object.text);
+    let obj;
+    if (entry.name.includes('.yml') || entry.name.includes('.yaml')) {
+      obj = yaml.parse(entry.object.text);
+    }
+    if (!entry.name.includes('.')) {
+      obj = entry.name;
+    }
     if (entry.name.includes('index')) {
       obj.index = true;
     }
@@ -194,6 +200,9 @@ const normalize = (response) => {
     }
     if (entry.name.includes('index')) {
       obj.index = true;
+    }
+    if (!entry.name.includes('.')) {
+      obj = entry.name;
     }
     return obj;
   });
@@ -223,6 +232,8 @@ const data = (folder, repository, defaultBranch) => client
    */
 const fileName = (folder) => `app/content/${folder.replace('/', '-')}.json`;
   
+const uniq = (value, index, self) => self.indexOf(value) === index;
+
 /**
    * Organizes JSON response.
    * 
@@ -231,18 +242,21 @@ const fileName = (folder) => `app/content/${folder.replace('/', '-')}.json`;
    * @return {Object} Object with index, and data keys.
    */
 const organizeJson = (arr) => {
-  var obj = {};
-  let data = [];
-  arr.map(a => {
+  var obj = {index: {}, data: [], toc: []};
+  arr.forEach(a => {
     if (Object.prototype.hasOwnProperty.call(a, 'index')) {
       obj.index = a;
     }
-    else {
-      data.push(a);
+    else if (typeof a === 'object' && Object.keys(a).length > 0) {
+      obj.data.push(a);
+      if (a.title) obj.toc.push(a.title);
+      if (a.name) obj.toc.push(a.name);
     }
-    obj.data = data;
-    return obj;
+    else if (typeof a === 'string') {
+      obj.toc.push(a);
+    }
   });
+  obj.toc = obj.toc.filter(uniq);
   return obj;
 };
 
