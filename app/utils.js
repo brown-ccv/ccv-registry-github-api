@@ -1,7 +1,7 @@
 require('dotenv').config();
 const Showdown  = require('showdown');
 const converter = new Showdown.Converter();
-const yaml = require('yaml');
+const yaml = require('js-yaml');
 const fm = require('front-matter');
 const GraphQLClient = require('graphql-request').GraphQLClient;
 
@@ -80,6 +80,13 @@ const pathsQuery = (organization, repository, branch) => {
                 ... on Tree {
                   entries {
                     path
+                    object {
+                      ... on Tree {
+                        entries {
+                          path
+                        }
+                      }
+                    }
                   }
                 }
               }
@@ -146,10 +153,17 @@ const statusQuery = (organization, issueState) => `{
 const paths = (organization, repository, defaultBranch) => client.request(pathsQuery(organization, repository, defaultBranch))
   .then((response) => {
     let paths = [];
-    response.repository.object.entries.forEach((obj) => {
-      paths.push(obj.path);
-      if (Object.keys(obj.object).includes('entries')) {
-        obj.object.entries.forEach((innerObject) => paths.push(innerObject.path));
+    response.repository.object.entries.forEach((level0) => {
+      paths.push(level0.path);
+      if (Object.keys(level0.object).includes('entries')) {
+        level0.object.entries.forEach((level1) => {
+          paths.push(level1.path);
+          if (Object.keys(level1.object).includes('entries')) {
+            level1.object.entries.forEach((level2) => {
+              paths.push(level2.path);
+            });
+          }
+        });
       }
     });
     const result = paths.filter((path) => !path.includes('.'));
@@ -175,7 +189,12 @@ const normalize = (response) => {
   const normalizedYaml = yamlFiles.map((entry) => {
     let obj;
     if (entry.name.includes('.yml') || entry.name.includes('.yaml')) {
-      obj = yaml.parse(entry.object.text);
+      try {
+        obj = yaml.safeLoad(entry.object.text);
+      } catch (e) {
+        console.log(entry.object);
+        console.log(e);
+      }
     }
     if (!entry.name.includes('.')) {
       obj = entry.name;
@@ -230,7 +249,7 @@ const data = (folder, repository, defaultBranch) => client
    * @param {string} folder - Path to folder from GitHub
    * @return {string} New path to content folder
    */
-const fileName = (folder) => `app/content/${folder.replace('/', '-')}.json`;
+const fileName = (folder) => `app/content/${folder.replace(/\//g, '-')}.json`;
   
 const uniq = (value, index, self) => self.indexOf(value) === index;
 
@@ -250,7 +269,6 @@ const organizeJson = (arr) => {
     else if (typeof a === 'object' && Object.keys(a).length > 0) {
       obj.data.push(a);
       if (a.title) obj.toc.push(a.title);
-      if (a.name) obj.toc.push(a.name);
     }
     else if (typeof a === 'string') {
       obj.toc.push(a);

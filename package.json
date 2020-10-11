@@ -20,12 +20,12 @@
     "graphql-request": "^1.8.2",
     "http-errors": "^1.8.0",
     "install": "^0.13.0",
+    "js-yaml": "^3.14.0",
     "jsdoc": "^3.6.6",
     "morgan": "^1.10.0",
     "showdown": "^1.9.1",
     "swagger-jsdoc": "^4.2.0",
-    "swagger-ui-express": "^4.1.4",
-    "yaml": "^1.8.3"
+    "swagger-ui-express": "^4.1.4"
   },
   "devDependencies": {
     "eslint": "^7.9.0",
