@@ -1,5 +1,5 @@
 .env
 node_modules
-content
+app/content/*
 out
 yarn-error.log
