@@ -4,9 +4,10 @@ const createError = require('http-errors');
 const swaggerJsdoc = require('swagger-jsdoc');
 const swaggerUi = require('swagger-ui-express');
 const swaggerOptions = require('./swaggerDef');
+const { reload } = require('./utils');
 
 const app = express();
-const port = 3001;
+const port = process.env.CCV_API_PORT || 3001;
 
 const specs = swaggerJsdoc(swaggerOptions);
 
@@ -30,6 +31,9 @@ const contentRouter = require('./routes/content');
 app.use('/status', statusRouter);
 app.use('/reload', reloadRouter);
 app.use('/', contentRouter);
+
+// start reloader before listening
+reload();
 
 app.listen(port, () => console.log(`CCV Content App listening on port ${port}!`));
 

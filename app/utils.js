@@ -4,12 +4,13 @@ const converter = new Showdown.Converter();
 const yaml = require('js-yaml');
 const fm = require('front-matter');
 const GraphQLClient = require('graphql-request').GraphQLClient;
+const fs = require('fs');
 
 const organization = 'brown-ccv';
 const repository = 'ccv-website-content';
 const defaultBranch = 'main';
 
-const endpoint = 'https://api.github.com/graphql'; 
+const endpoint = 'https://api.github.com/graphql';
 const client = new GraphQLClient(endpoint, {
   headers: {
     'Content-Type': 'application/json',
@@ -37,7 +38,7 @@ const swaggerString = (path) => {
  * @function dataQuery
  * @param {string} folder - Folder in repository to fetch contents
  * @param {string} repository - GitHub repository name
- * @param {string} branch - Git branch 
+ * @param {string} branch - Git branch
  * @return {string} The GraphQL query string.
  */
 const dataQuery = (folder, repository, branch) => {
@@ -59,14 +60,14 @@ const dataQuery = (folder, repository, branch) => {
       }
       `;
 };
-  
+
 /**
    * Get GraphQL query string to fetch list of paths present in a GitHub repository (2 levels deep).
    *
    * @function pathsQuery
    * @param {string} organization - Name of GitHub organization
    * @param {string} repository - GitHub repository name
-   * @param {string} branch - Git branch 
+   * @param {string} branch - Git branch
    * @return {string} The GraphQL query string.
    */
 const pathsQuery = (organization, repository, branch) => {
@@ -96,7 +97,7 @@ const pathsQuery = (organization, repository, branch) => {
       }
     }`;
 };
-  
+
 /**
    * Get GraphQL query string to fetch list of issues for all repos in a organization.
    *
@@ -139,15 +140,15 @@ const statusQuery = (organization, issueState) => `{
     }
   }
   `;
-  
+
 /**
    * Get list of paths present in a GitHub repository (2 levels deep), using GitHub API v4
-   * 
+   *
    * @async
    * @function paths
    * @param {string} organization - Name of GitHub organization
    * @param {string} repository - GitHub repository name
-   * @param {string} branch - Git branch 
+   * @param {string} branch - Git branch
    * @return {Promise<Array>} Promise that resolves in a list of paths.
    */
 const paths = (organization, repository, defaultBranch) => client.request(pathsQuery(organization, repository, defaultBranch))
@@ -169,14 +170,14 @@ const paths = (organization, repository, defaultBranch) => client.request(pathsQ
     const result = paths.filter((path) => !path.includes('.'));
     return result;
   });
-  
-  
+
+
 /**
-   * Normalize response from GraphQL GitHub API v4. Reduce file array to contain MD and YAML only. 
+   * Normalize response from GraphQL GitHub API v4. Reduce file array to contain MD and YAML only.
    * For MD, parses the yaml front-matter, converts the body to HTML and add it to the JSON object as `body`.
    * YAML files simply get parset into JSON objects.
    * Combine all files into one array.
-   * 
+   *
    * @function normalize
    * @param {string} response - Response from GraphQL client with the content of files in the repository.
    * @return {Array<object>} Returns an array of objects with file contents.
@@ -204,7 +205,7 @@ const normalize = (response) => {
     }
     return obj;
   });
-  
+
   const normalizedMd = mdFiles.map((entry) => {
     const md = fm(entry.object.text);
     var obj = {};
@@ -213,7 +214,7 @@ const normalize = (response) => {
         ...md.attributes,
         body: `<main>${converter.makeHtml(md.body)}</main>`
       };
-    } 
+    }
     else {
       obj = md.attributes;
     }
@@ -226,36 +227,36 @@ const normalize = (response) => {
     return obj;
   });
   return organizeJson(normalizedMd.concat(normalizedYaml));
-}; 
-  
+};
+
 /**
    * Send a request to GitHub API v4 to get all contents of files in the folder/repo/branch.
-   * 
+   *
    * @async
    * @function data
    * @param {string} folder - Folder in repository to fetch contents
    * @param {string} repository - GitHub repository name
-   * @param {string} branch - Git branch 
+   * @param {string} branch - Git branch
    * @return {Promise<Array>} Promise that resolves in a list of objects with file contents.
    */
 const data = (folder, repository, defaultBranch) => client
   .request(dataQuery(folder, repository, defaultBranch))
   .then((response) => normalize(response));
-  
+
 /**
    * Generates file name with full path to content folder.
-   * 
+   *
    * @function fileName
    * @param {string} folder - Path to folder from GitHub
    * @return {string} New path to content folder
    */
 const fileName = (folder) => `app/content/${folder.replace(/\//g, '-')}.json`;
-  
+
 const uniq = (value, index, self) => self.indexOf(value) === index;
 
 /**
    * Organizes JSON response.
-   * 
+   *
    * @function fileName
    * @param {Array} arr - Array of objects (response from Github API call)
    * @return {Object} Object with index, and data keys.
@@ -278,6 +279,29 @@ const organizeJson = (arr) => {
   return obj;
 };
 
+/**
+   * Refresh content.
+   *
+   * @function fileName
+   * @return {String} Status of reload.
+   */
+const reload = () => {
+  paths(organization, repository, defaultBranch).then(paths => {
+    paths.forEach(path => {
+    //   let contentRoute = fs.openSync('./app/routes/content.js', 'a+');
+    //   fs.appendFile(contentRoute, swaggerString(path), err => {
+    //     console.log(err);
+    //   });
+      data(path, repository, defaultBranch).then(response => {
+        fs.writeFile(fileName(path), JSON.stringify(response), (err) => {
+          if (err) throw err;
+        });
+      });
+    });
+    return 'Content updated.';
+  });
+}
+
 module.exports = {
   organization,
   repository,
@@ -291,5 +315,6 @@ module.exports = {
   dataQuery,
   client,
   swaggerString,
-  organizeJson
+  organizeJson,
+  reload
 };
