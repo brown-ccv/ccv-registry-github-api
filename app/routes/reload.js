@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const fs = require('fs');
-const { paths, data, fileName, organization, repository, defaultBranch, swaggerString } = require('../utils');
+const { reload } = require('../utils');
 
 /**
  * @swagger
@@ -12,21 +11,9 @@ const { paths, data, fileName, organization, repository, defaultBranch, swaggerS
  *       200:
  *         description: Success! New content is now available.
  */
-router.get('/', async (req, res) => { 
-  paths(organization, repository, defaultBranch).then(paths => {
-    paths.forEach(path => {
-    //   let contentRoute = fs.openSync('./app/routes/content.js', 'a+');
-    //   fs.appendFile(contentRoute, swaggerString(path), err => {
-    //     console.log(err);
-    //   });      
-      data(path, repository, defaultBranch).then(response => {
-        fs.writeFile(fileName(path), JSON.stringify(response), (err) => {
-          if (err) throw err;
-        });
-      }); 
-    });
-    res.send('Content updated.');
-  });
+router.get('/', async (req, res) => {
+  const status = await reload();
+  res.send(status);
 });
-  
+
 module.exports = router;

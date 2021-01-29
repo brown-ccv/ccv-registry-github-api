@@ -1,4 +1,4 @@
-FROM node:12-alpine
+FROM node:14-alpine
 
 RUN mkdir -p /usr/src/app
 
@@ -8,6 +8,8 @@ COPY . .
 
 RUN npm install
 
-EXPOSE 3000
+ENV CCV_API_PORT=8080
+
+EXPOSE 8080
 
 CMD ["npm", "start"]
